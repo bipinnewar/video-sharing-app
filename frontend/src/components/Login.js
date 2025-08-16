@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -10,11 +11,15 @@ function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('https://video-backend-app.azurewebsites.net/api/users/login', { email, password });
+      console.log('API_URL:', process.env.REACT_APP_API_URL);
+      console.log('Form data:', { email, password });
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/users/login`, { email, password });
       localStorage.setItem('token', response.data.token);
+      toast.success('Login successful!');
       navigate('/');
     } catch (error) {
-      console.error('Login error:', error.response.data);
+      console.error('Login error:', error.message);
+      toast.error(error.response?.data?.message || 'Login failed. Please try again.');
     }
   };
 

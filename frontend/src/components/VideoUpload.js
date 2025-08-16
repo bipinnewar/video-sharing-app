@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
 function VideoUpload() {
   const [title, setTitle] = useState('');
@@ -15,12 +16,14 @@ function VideoUpload() {
     formData.append('title', title);
     formData.append('description', description);
     try {
-      await axios.post('https://video-backend-app.azurewebsites.net/api/videos', formData, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/videos`, formData, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
+      toast.success('Video uploaded successfully!');
       navigate('/');
     } catch (error) {
-      console.error('Upload error:', error.response.data);
+      console.error('Upload error:', error.message);
+      toast.error(error.response?.data?.message || 'Video upload failed. Please try again.');
     }
   };
 

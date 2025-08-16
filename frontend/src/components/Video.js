@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'react-toastify';
 
 function Video() {
   const { id } = useParams();
@@ -9,26 +10,28 @@ function Video() {
   const [commentText, setCommentText] = useState('');
 
   useEffect(() => {
-    axios.get(`https://video-backend-app.azurewebsites.net/api/videos`)
+    axios.get(`${process.env.REACT_APP_API_URL}/api/videos`)
       .then(response => {
         const videoData = response.data.find(v => v.id === id);
         setVideo(videoData);
       });
-    axios.get(`https://video-backend-app.azurewebsites.net/api/comments/${id}`)
+    axios.get(`${process.env.REACT_APP_API_URL}/api/comments/${id}`)
       .then(response => setComments(response.data));
   }, [id]);
 
   const handleCommentSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('https://video-backend-app.azurewebsites.net/api/comments', { videoId: id, comment: commentText }, {
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/comments`, { videoId: id, comment: commentText }, {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
+      toast.success('Comment added successfully!');
       setCommentText('');
-      axios.get(`https://video-backend-app.azurewebsites.net/api/comments/${id}`)
+      axios.get(`${process.env.REACT_APP_API_URL}/api/comments/${id}`)
         .then(response => setComments(response.data));
     } catch (error) {
-      console.error('Comment error:', error.response.data);
+      console.error('Comment error:', error.message);
+      toast.error(error.response?.data?.message || 'Comment failed. Please try again.');
     }
   };
 
@@ -47,7 +50,7 @@ function Video() {
           value={commentText}
           onChange={e => setCommentText(e.target.value)}
           placeholder="Add a comment"
-          className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition mb-4"
+          className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition mb-4"
           required
         />
         <button type="submit" className="gradient-btn w-full">

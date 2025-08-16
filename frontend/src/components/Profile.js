@@ -9,7 +9,7 @@ function Profile() {
 
   useEffect(() => {
     if (user) {
-      axios.get('https://video-backend-app.azurewebsites.net/api/videos')
+      axios.get(`${process.env.REACT_APP_API_URL}/api/videos`)
         .then(response => setVideos(response.data.filter(v => v.userId === user.id)))
         .catch(error => console.error('Error fetching videos:', error));
     }
