@@ -21,3 +21,7 @@ a.txt
 
 # Azure deployment tokens
 *.token
+
+# Existing ignores
+node_modules/
+backend.zip
