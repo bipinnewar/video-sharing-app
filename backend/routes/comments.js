@@ -1,64 +1,62 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
-const { commentContainer, textAnalyticsClient } = require('../config/azure');
-const router = express.Router();
+   const jwt = require('jsonwebtoken');
+   const { CosmosClient } = require('@azure/cosmos');
+   const { TextAnalyticsClient, AzureKeyCredential } = require('@azure/ai-text-analytics');
+   const router = express.Router();
 
-const authenticate = (req, res, next) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  if (!token) return res.status(401).json({ error: 'No token provided' });
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded;
-    next();
-  } catch (err) {
-    res.status(401).json({ error: 'Invalid token' });
-  }
-};
+   const cosmosClient = new CosmosClient({ endpoint: process.env.COSMOS_ENDPOINT, key: process.env.COSMOS_KEY });
+   const database = cosmosClient.database('VideoDB');
+   const commentContainer = database.container('Comments');
+   const textAnalyticsClient = new TextAnalyticsClient(process.env.COGNITIVE_ENDPOINT, new AzureKeyCredential(process.env.COGNITIVE_KEY));
 
-router.post('/', authenticate, async (req, res) => {
-  try {
-    const { videoId, comment } = req.body;
-    if (!videoId || !comment) {
-      return res.status(400).json({ error: 'Invalid input' });
-    }
-    const sentimentResult = await textAnalyticsClient.analyzeSentiment([comment]);
-    const sentiment = sentimentResult[0].sentiment;
-    const confidenceScores = sentimentResult[0].confidenceScores;
-    const commentData = {
-      id: require('crypto').randomUUID(),
-      videoId,
-      userId: req.user.id,
-      comment,
-      sentiment,
-      confidenceScores,
-      createdAt: new Date()
-    };
-    await commentContainer.items.create(commentData);
-    res.status(201).json({
-      message: 'Comment added successfully',
-      commentId: commentData.id,
-      videoId,
-      comment,
-      sentiment,
-      confidenceScores
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to add comment' });
-  }
-});
+   const authenticate = (req, res, next) => {
+     const token = req.headers.authorization?.split(' ')[1];
+     if (!token) return res.status(401).json({ error: 'No token provided' });
+     try {
+       const decoded = jwt.verify(token, process.env.JWT_SECRET);
+       req.user = decoded;
+       next();
+     } catch (err) {
+       res.status(401).json({ error: 'Invalid token' });
+     }
+   };
 
-router.get('/:videoId', async (req, res) => {
-  try {
-    const videoId = req.params.videoId;
-    const { resources: comments } = await commentContainer.items
-      .query(`SELECT * FROM c WHERE c.videoId = "${videoId}"`)
-      .fetchAll();
-    res.json(comments);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to get comments' });
-  }
-});
+   router.post('/:id/comments', authenticate, async (req, res) => {
+     try {
+       const { text } = req.body;
+       if (!text) return res.status(400).json({ error: 'Comment text required' });
+       const sentimentResult = await textAnalyticsClient.analyzeSentiment([text]);
+       const sentimentScore = sentimentResult[0].sentiment;
+       const comment = {
+         id: require('uuid').v4(),
+         commentId: require('uuid').v4(),
+         videoId: req.params.id,
+         userId: req.user.userId,
+         text,
+         timestamp: new Date().toISOString(),
+         sentimentScore
+       };
+       await commentContainer.items.create(comment);
+       res.status(201).json({ message: 'Comment added', comment });
+     } catch (err) {
+       console.error('Add comment error:', err);
+       res.status(500).json({ error: 'Failed to add comment', details: err.message });
+     }
+   });
 
-module.exports = router;
+   router.get('/:id/comments', async (req, res) => {
+     try {
+       const { resources } = await commentContainer.items
+         .query({
+           query: 'SELECT * FROM c WHERE c.videoId = @videoId',
+           parameters: [{ name: '@videoId', value: req.params.id }]
+         })
+         .fetchAll();
+       res.json(resources);
+     } catch (err) {
+       console.error('List comments error:', err);
+       res.status(500).json({ error: 'Failed to get comments', details: err.message });
+     }
+   });
+
+   module.exports = router;
